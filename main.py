@@ -171,7 +171,6 @@ def baseline_ls_predict(Y_b):
 class HybridPINN(nn.Module):
     """
     Learns H directly but uses physics-informed features.
-    No bottleneck - can represent any H!
     """
 
     def __init__(self):
@@ -249,7 +248,7 @@ class UnfoldedNet(nn.Module):
         # Initialize to approximate identity + gradient step
         for layer in self.layers:
             nn.init.eye_(layer.weight[:2 * N_r * N_RIS, :2 * N_r * N_RIS])  # Identity on h part
-            nn.init.normal_(layer.weight[:, 2 * N_r * N_RIS:], 0, 0.01)  # Small gradient coupling
+            nn.init.normal_(layer.weight[:, 2 * N_r * N_RIS:], 0, 0.01)
             nn.init.zeros_(layer.bias)
 
     def forward(self, Y_b):
@@ -283,11 +282,10 @@ class UnfoldedNet(nn.Module):
             # Concatenate current estimate and gradient
             features = torch.cat([h, grad_flat], dim=1)
 
-            # Learnable update with ReLU activation (except last layer)
             if t < self.T - 1:
                 h = torch.relu(self.layers[t](features))
             else:
-                h = self.layers[t](features)  # No activation on last layer
+                h = self.layers[t](features) 
 
         # Reconstruct final H
         H_real = h[:, :N_r * N_RIS].reshape(B, N_r, N_RIS)
@@ -344,9 +342,8 @@ def train_hybrid_pinn(Y_tr, H_tr, snr_tag="20dB"):
             loss = (F.mse_loss(H_pred.real, H_b.real) +
                     F.mse_loss(H_pred.imag, H_b.imag))
 
-            # Optional: add rank regularization
-            # rank_reg = torch.mean(torch.linalg.vector_norm(H_pred.reshape(H_pred.size(0), -1), ord=2, dim=-1))
-            # loss = loss + 1e-6 * rank_reg
+            rank_reg = torch.mean(torch.linalg.vector_norm(H_pred.reshape(H_pred.size(0), -1), ord=2, dim=-1))
+            loss = loss + 1e-6 * rank_reg
 
             opt.zero_grad()
             loss.backward()
